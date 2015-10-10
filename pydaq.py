@@ -9,12 +9,14 @@ Description:
 # Imports
 import matplotlib.pyplot as plt
 from numpy import linspace
-from scipy.odr import ODR, Model, RealData
+from scipy.stats import chi2
+from scipy.odr import *
+#from scipy.odr import ODR, Model, RealData
 
 # Classes
 class Graph:
 	""" Represents an object used for fitting and plotting """
-	def __init__(self, x, y, dx, dy=[]):
+	def __init__(self, x, y, dx, dy):
 		"""
 		Builds the graph.
 
@@ -26,8 +28,8 @@ class Graph:
 		"""
 		self.x = x
 		self.y = y
-		self.dx = dx
-		self.dy = dy if len(dy) not 0 else [0 for _ in dx] 
+		self.dy = dy
+		self.dx = [0 for _ in x] if len(dx) == 0 else dx 
 		self.set_labels()
 	
 	def __str__(self):
@@ -42,7 +44,7 @@ class Graph:
 
 class Fit:
 	""" Represents a fit of RealData to a Graph """
-	def __init__(self, *args, label="", chi=None, pval=None):
+	def __init__(self, args, label="", chi=None, pval=None):
 		""" 
 		Stores the fit information.
 
@@ -61,18 +63,29 @@ class Fit:
 		return self.label
 
 # Functions
-def make_fit(graph, func, flabel="", init=[], x0=0, xf=len(graph.x)):
+def reduced_chi_square(xvals, yvals, sigy, func, numparam):
+	""" 
+	Returns the reduced chi-squared, pvalue, and DOF of the fit.
+	"""
+	c = 0
+	n = len(xvals) - numparam
+	for x, y, s in zip(xvals, yvals, sigy):
+		 c += (y-func(x))**2/(s**2)
+	return c/n, float(1-chi2.cdf(c/n,n)), n 
+
+def make_fit(graph, func, flabel="", x0=0, xf=0):
 	""" 
 	Returns a Fit for the Graph using the fitting function. 
 	
 	Keyword args
 	graph  = contains data for the fit [Graph]
 	func   = function with arguments (*args, x) [function]
-	flabel = label used to plot the function 
 	init   = initial guess of fit parameter values [array]
+	flabel = label used to plot the function 
 	x0 = fit starting point
 	xf = fit ending point
 	"""
+	xf = len(graph.x) if xf == 0 else xf
 	xdata = graph.x[x0:xf]
 	ydata = graph.y[x0:xf]
 	dxdata = graph.dx[x0:xf]
@@ -84,19 +97,19 @@ def make_fit(graph, func, flabel="", init=[], x0=0, xf=len(graph.x)):
 	model = Model(func)
 	data = RealData(xdata, ydata, sx=dxdata, sy=dydata)
 
-	odr = None
-	if len(init) not 0:
-		odr = ODR(data, model, beta0=init)
-	else:
-		odr = ODR(data, model)
+	print(type(model))
+	print(type(data))
+
+	odr = ODR(data, model, beta0=[1.0,1.0])
 	
 	out = odr.run()
-	chi, p, dof = reduced_chi_square(graph.x, graph.y, graph.dy, func, len(out.beta))
-	fit = Fit(output.beta, label=flabel, chi=chi, pval=p)
+	f = lambda x: func(out.beta,x)
+	chi, p, dof = reduced_chi_square(graph.x, graph.y, graph.dy, f, len(out.beta))
+	fit = Fit(out.beta, label=flabel, chi=chi, pval=p)
 
 	print("\nScipy ODR fit results...")
-	output.pprint()
-	print("Summary of results for "+str(graph)+" :")
+	out.pprint()
+	print("\nSummary of results for "+str(graph)+" ...")
 	print(fit)
 	print("Reduced chi=%f\tp=%f\tDOF=%d"%(chi, p, dof))
 
