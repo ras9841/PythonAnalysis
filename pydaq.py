@@ -47,10 +47,10 @@ class Fit:
 		Stores the fit information.
 
 		Keyword args
-		args = fit parameters [tuple]
+		args  = fit parameters [tuple]
 		label = label used for graphing [string]
-		chi = chi-square of fit [float]
-		pval = p-value of chi-squared[float].
+		chi  = chi-square of fit [float]
+		pval = p-value of chi-squared[float]
 		"""
 		self.params = args
 		self.label = label
@@ -60,3 +60,44 @@ class Fit:
 		""" String representation of a Fit """
 		return self.label
 
+# Functions
+def make_fit(graph, func, flabel="", init=[], x0=0, xf=len(graph.x)):
+	""" 
+	Returns a Fit for the Graph using the fitting function. 
+	
+	Keyword args
+	graph  = contains data for the fit [Graph]
+	func   = function with arguments (*args, x) [function]
+	flabel = label used to plot the function 
+	init   = initial guess of fit parameter values [array]
+	x0 = fit starting point
+	xf = fit ending point
+	"""
+	xdata = graph.x[x0:xf]
+	ydata = graph.y[x0:xf]
+	dxdata = graph.dx[x0:xf]
+	dydata = graph.dy[x0:xf]
+
+	print("*"*80)
+	print("Fitting "+str(graph)+" from x=%f to x=%f."%(xdata[0],xdata[-1]))
+	
+	model = Model(func)
+	data = RealData(xdata, ydata, sx=dxdata, sy=dydata)
+
+	odr = None
+	if len(init) not 0:
+		odr = ODR(data, model, beta0=init)
+	else:
+		odr = ODR(data, model)
+	
+	out = odr.run()
+	chi, p, dof = reduced_chi_square(graph.x, graph.y, graph.dy, func, len(out.beta))
+	fit = Fit(output.beta, label=flabel, chi=chi, pval=p)
+
+	print("\nScipy ODR fit results...")
+	output.pprint()
+	print("Summary of results for "+str(graph)+" :")
+	print(fit)
+	print("Reduced chi=%f\tp=%f\tDOF=%d"%(chi, p, dof))
+
+	return fit
